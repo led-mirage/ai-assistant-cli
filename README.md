@@ -424,18 +424,6 @@ python3 ai.py -p "さっきの続きを教えて"
 python3 ai.py --clear-history
 ```
 
-### ライブラリを追加したい場合
-
-`.venv` を有効にした状態でインストールし、`requirements.txt` に反映します。
-
-```bash
-source .venv/bin/activate
-pip install ライブラリ名
-
-# 反映
-pip freeze > requirements.txt
-```
-
 ---
 
 ## 📚 使用しているライブラリ
