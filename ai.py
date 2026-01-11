@@ -10,12 +10,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
 import yaml
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 
 
 APP_NAME = "AI Assistant CLI"
-APP_VERSION = "1.0.0"
-COPYRIGHT = "© 2025 led-mirage"
+APP_VERSION = "1.1.0"
+COPYRIGHT = "© 2025-2026 led-mirage"
 CONFIG_FILE = "config.yaml"
 
 # Chat History
@@ -136,8 +136,36 @@ def expand_metavariables(text: str) -> str:
     return pattern.sub(replacer, text)
 
 
-def generate_oneshot_message(model: str, system_prompt: str, user_prompt: str) -> str:
-    client = OpenAI()
+def create_client(config: Dict[str, Any]):
+    api = config.get("api", "openai")
+    if api == "openai":
+        api_key_envvar = config.get("api_key_envvar", "OPENAI_API_KEY")
+        api_key = os.environ.get(api_key_envvar)
+        if not api_key:
+            raise RuntimeError(f"{api_key_envvar} is not set")        
+        return OpenAI(api_key=api_key)
+    elif api == "azure":
+        api_key_envvar = config.get("api_key_envvar", "AZURE_OPENAI_API_KEY")
+        api_key = os.environ.get(api_key_envvar)
+        if not api_key:
+            raise RuntimeError(f"{api_key_envvar} is not set")        
+
+        azure_endpoint_envvar = config.get("azure_endpoint_envvar", "AZURE_OPENAI_ENDPOINT")
+        azure_endpoint = os.environ.get(azure_endpoint_envvar)
+        if not azure_endpoint:
+            raise RuntimeError(f"{azure_endpoint_envvar} is not set")
+
+        return AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=azure_endpoint,
+            api_version="2025-04-01-preview"
+        )
+    else:
+        raise ValueError(f"Unsupported API provider: {api!r}. Expected 'openai' or 'azure'.")
+
+
+def generate_oneshot_message(config: Dict[str, Any], model: str, system_prompt: str, user_prompt: str) -> str:
+    client = create_client(config)
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -150,6 +178,7 @@ def generate_oneshot_message(model: str, system_prompt: str, user_prompt: str) -
 
 
 def generate_chat_message(
+    config: Dict[str, Any],
     model: str,
     system_prompt: str,
     user_prompt: str,
@@ -164,7 +193,7 @@ def generate_chat_message(
     - Reset history if older than history_expire_seconds
     - Max number of turns in history is max_turns
     """
-    client = OpenAI()
+    client = create_client(config)
 
     # Check if the history has expired
     if history_is_expired(history_path, history_expire_seconds):
@@ -300,19 +329,20 @@ def main() -> int:
     user_prompt = choose_user_prompt(config, args.user_prompt, args.rest)
     history_expire_seconds = config.get("history_expire_seconds", 600)
     max_turns = config.get("max_turns", 20)
+    oneshot_mode = args.oneshot or (args.user_prompt is None and not args.rest)
 
     if args.debug:
         print(f"System prompt: {system_prompt}", file=sys.stderr)
         print(f"User prompt: {user_prompt}", file=sys.stderr)
+        print(f"api: {config.get('api', 'openai')}", file=sys.stderr)
         print(f"Model: {model}", file=sys.stderr)
-        print(f"Oneshot: {args.oneshot}", file=sys.stderr)
-
-    oneshot_mode = args.oneshot or (args.user_prompt is None and not args.rest)
+        print(f"Oneshot: {oneshot_mode}", file=sys.stderr)
 
     try:
         if oneshot_mode:
             # oneshot mode
             message = generate_oneshot_message(
+                config=config,
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -320,6 +350,7 @@ def main() -> int:
         else:
             # chat mode
             message = generate_chat_message(
+                config=config,
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,

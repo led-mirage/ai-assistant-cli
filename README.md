@@ -299,6 +299,9 @@ echo -e "\033[0m"
 
 指定できる主な項目は次のとおりです。
 
+- `api`: 使用するAPI。`openai`もしくは`azure`。デフォルトは `openai`
+- `api_key_envvar`: APIキーを格納している環境変数名。デフォルトは `OPENAI_API_KEY`
+- `azure_endpoint_envvar`: AzureOpenAI Service のエンドポイントを格納している環境変数名。デフォルトは `AZURE_OPENAI_ENDPOINT`
 - `model` : 使用するモデル名
 - `system_prompt` : システムプロンプト（アシスタント全体の振る舞い定義）
 - `user_prompt` : デフォルトのユーザープロンプト（任意）
@@ -462,6 +465,10 @@ OpenAI API へのリクエスト送信とレスポンス取得に使用してい
 ---
 
 ## 📜 バージョン履歴
+
+### 1.1.0 (2026/01/11)
+
+- AzureOpenAI Service に対応
 
 ### 1.0.0 (2025/12/28)
 
