@@ -1,3 +1,9 @@
+api: openai
+
+api_key_envvar: OPENAI_API_KEY
+
+azure_endpoint_envvar: AZURE_OPENAI_ENDPOINT
+
 model: gpt-4.1-mini
 
 system_prompt: >
