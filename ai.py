@@ -6,6 +6,7 @@ import getpass
 import re
 import argparse
 import json
+import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
@@ -14,7 +15,7 @@ from openai import OpenAI, AzureOpenAI
 
 
 APP_NAME = "AI Assistant CLI"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 COPYRIGHT = "© 2025-2026 led-mirage"
 CONFIG_FILE = "config.yaml"
 
@@ -166,15 +167,25 @@ def create_client(config: Dict[str, Any]):
 
 def generate_oneshot_message(config: Dict[str, Any], model: str, system_prompt: str, user_prompt: str) -> str:
     client = create_client(config)
-    response = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
+        stream=True,
     )
-    content = response.choices[0].message.content
-    return content.strip() if content else ""
+
+    full = ""
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta.content or ""
+        full += delta
+        print(delta, end="", flush=True)
+    print()
+    
+    return full.strip()
 
 
 def generate_chat_message(
@@ -222,11 +233,19 @@ def generate_chat_message(
         print("=== end ===", file=sys.stderr)
 
     # Call the API
-    response = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model=model,
         messages=messages,
+        stream=True,
     )
-    content = response.choices[0].message.content or ""
+    content = ""
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta.content or ""
+        content += delta
+        print(delta, end="", flush=True)
+    print()
     content = content.strip()
 
     # Add assistant message to history
@@ -341,7 +360,7 @@ def main() -> int:
     try:
         if oneshot_mode:
             # oneshot mode
-            message = generate_oneshot_message(
+            generate_oneshot_message(
                 config=config,
                 model=model,
                 system_prompt=system_prompt,
@@ -349,7 +368,7 @@ def main() -> int:
             )
         else:
             # chat mode
-            message = generate_chat_message(
+            generate_chat_message(
                 config=config,
                 model=model,
                 system_prompt=system_prompt,
@@ -362,9 +381,9 @@ def main() -> int:
     except Exception as e:
         if args.debug:
             print(f"Error: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
         return 1
 
-    print(message)
     return 0
 
 
