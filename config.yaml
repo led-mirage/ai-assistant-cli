@@ -15,6 +15,11 @@ system_prompt: >
 user_prompt: >
   ユーザーがターミナルにログインしたときの一行メッセージを英語で書いてください。
 
+pipe_prompt: >
+  以下は標準入力です。この内容について解説してください。
+
 history_expire_seconds: 600
 
 max_turns: 20
+
+stdin_max_bytes: 200000

@@ -15,13 +15,15 @@ from openai import OpenAI, AzureOpenAI
 
 
 APP_NAME = "AI Assistant CLI"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 COPYRIGHT = "© 2025-2026 led-mirage"
 CONFIG_FILE = "config.yaml"
 
 # Chat History
 HISTORY_DIR = "history"
 HISTORY_FILE = os.path.join(HISTORY_DIR, "default.json")
+
+DEFAULT_PROMPT = "Generate a short message."
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,7 +111,7 @@ def choose_user_prompt(config: Dict[str, Any], cli_prompt: Optional[str], args_r
         base = config.get("user_prompt", "")
     base = base.strip()
     if not base:
-        base = "Generate a short message."
+        base = DEFAULT_PROMPT
     return expand_metavariables(base)
 
 
@@ -332,6 +334,17 @@ def save_history(path: str, model: str, messages: List[Dict[str, str]]) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def read_stdin_if_piped(max_bytes: int = 200000) -> Optional[str]:
+    """Read stdin only when piped/redirected. Returns None if no stdin."""
+    if sys.stdin.isatty():
+        return None
+    data = sys.stdin.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        data = data[:max_bytes] + "\n...[truncated]..."
+    data = data.strip()
+    return data or None
+
+
 def main() -> int:
     args = parse_args()
     config = load_config(args.config)
@@ -346,9 +359,23 @@ def main() -> int:
     model = args.model or config.get("model", "gpt-4.1-mini")
     system_prompt = choose_system_prompt(config, args.system_prompt)
     user_prompt = choose_user_prompt(config, args.user_prompt, args.rest)
+
+    piped = read_stdin_if_piped(config.get("stdin_max_bytes", 200000))
+    if piped:
+        if not args.rest:
+            user_prompt = (
+                f"{config.get("pipe_prompt", "")}\n\n"
+                f"{piped}\n"
+            )
+        else:
+            user_prompt = (
+                f"{user_prompt}\n\n"
+                f"{piped}\n"
+            )
+
     history_expire_seconds = config.get("history_expire_seconds", 600)
     max_turns = config.get("max_turns", 20)
-    oneshot_mode = args.oneshot or (args.user_prompt is None and not args.rest)
+    oneshot_mode = args.oneshot or (args.user_prompt is None and not args.rest and piped is None)
 
     if args.debug:
         print(f"System prompt: {system_prompt}", file=sys.stderr)
